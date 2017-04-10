@@ -4,42 +4,6 @@
 // ME 493: Autonomy
 // Project Gamma
 
-
-/*#include <assert.h>
-#include <iostream>
-#include <random>
-#include <time.h>
-#include <vector>
-#include <algorithm>
-#include "stdafx.h"
-
-using namespace std;
-
-#define XRand (double)rand()/RAND_MAX*100
-#define YRand (double)rand()/RAND_MAX*100
-
-class cities {
-	double xcoord;
-	double ycoord;
-
-	void setx() {
-		xcoord = XRand;
-	};
-	void sety() {
-		ycoord = YRand;
-	};
-
-	void init() {
-
-	}
-};*/
-
-/*class agent {
-
-	double distance;
-
-};*/
-
 #include "stdafx.h"
 #include <iostream>
 #include <assert.h>
@@ -52,105 +16,206 @@ class cities {
 
 using namespace std;
 
-int xmax = 100;
-int ymax = 100;
-
 class city {
 public:
-	double xpos;
-	double ypos;
+	double xcoor;
+	double ycoor;
 
-	void init();
+	void init() {
+		//Positions will randomize between 0 and 100
+		//LR.1: Program represents a city with some coordinates
+		xcoor = rand() % 100;
+		ycoor = rand() % 100;
+	};
+
 };
 
-void city::init()
-{
-	//all cities will be initialized within the bounds of the grid
-	xpos = rand() % xmax;
-	ypos = rand() % ymax;
-	assert(xpos >= 0 && xpos <= 100);
-	assert(ypos >= 0 && ypos <= 100);
-}
 
 class salesman {
 public:
-	double distance;
-	double xpos;
-	double ypos;
+	double dist;
+	double xcoor;
+	double ycoor;
 	double fitness;
 
-	void init(vector<city> citySet);
-	void update(vector<int> policy, vector<city> citySet);
+	//LR.2: Program can represent an agent at a certain city 
+	void init(vector<city> citySet) {
+		//initialize salesman at first city with no distance covered
+		//Setting the fitness equal to the distance traveled 
+		dist = 0.0;
+		xcoor = citySet.at(0).xcoor;
+		ycoor = citySet.at(0).ycoor;
+		fitness = dist;
+	};
+
+	void update(vector<int> policy, vector<city> Set) {
+		dist = 0.0;
+		//Distance to be calculated using pythagorean's theorem
+		//Distance calculation will continue until the policy is finsihed
+		for (int i = 0; i < policy.size(); i++)
+		{
+			city New;
+			New = Set.at(policy.at(i));
+			//LR.7: Calculating distance between two cities
+			dist += sqrt(pow((abs(xcoor - New.xcoor)), 2) + pow(abs((ycoor - New.ycoor)), 2));
+			fitness = dist;
+			//Makes sure that agent is now placed at the new city traveled to
+			xcoor = New.xcoor;
+			ycoor = New.ycoor;
+		}
+	};
+
 };
 
-void salesman::init(vector<city> citySet)
-{
-	//initialize salesman at first city with no distance covered
-	distance = 0.0;
-	xpos = citySet.at(0).xpos;
-	ypos = citySet.at(0).ypos;
-	//using same value as distance for fitness
-	//aiming to minimize distance and fitness through multiple episodes
-	fitness = distance;
-}
-
-void salesman::update(vector<int> policy, vector<city> citySet)
-{
-	distance = 0.0;
-	//pythagorean theorem for distance to next city
-	//keeping running total of distance until policy is completed
-	for (int i = 0; i < policy.size(); i++)
-	{
-		city newCity;
-		newCity = citySet.at(policy.at(i));
-		distance = distance + sqrt(pow((abs(xpos - newCity.xpos)), 2) + pow(abs((ypos - newCity.ypos)), 2));
-		assert(distance >= 0); // fulfills test that program is calculating distance between two cities (LR.7)
-		fitness = distance;
-		//reset salesman's positions to chosen city
-		xpos = newCity.xpos;
-		ypos = newCity.ypos;
-	}
-}
 
 class policy {
 public:
-	vector<int> P;
+	vector<int> A;
 	double fitness;
 
-	void init(int numCities);
+	void init(int numCities) {
+		// Create one policy which is a vector of integers. Each integer represents index in city vector
+		for (int k = 0; k< numCities; k++)
+		{
+			A.push_back(k);
+		}
+
+		// randomly shuffle all cities but keep first one in same position
+		random_shuffle(A.begin() + 1, A.end());
+
+		/*for (int i = 0; i < P.size(); i++)
+		{
+		cout << P.at(i) << " ";
+		}
+		cout << endl;*/
+		assert(A.size() == numCities); // check that policy has same size as total number of cities
+		assert(*A.begin() == 0); // check that every policy starts at the first city
+								 // previous asserts fulfill test that agent has set of policies that represent its path (LR.3)
+								 // previous asserts also partially fulfill test that agent always starts at same city (LR.5)
+
+		fitness = -1.0;
+	};
 };
 
-void policy::init(int numCities)
-{
-	// Create one policy which is a vector of integers. Each integer represents index in city vector
-	for (int k = 0; k< numCities; k++)
+
+vector<policy> EA_init(int numCities, int popSize) {
+	vector<policy> population;
+
+	for (int i = 0; i < popSize / 2; i++)
 	{
-		P.push_back(k);
+		policy p;
+		p.init(numCities);
+		population.push_back(p);
+	}
+	assert(population.size() == popSize / 2); // fulfills test that a population of policies is created (MR.1)
+
+	return population;
+};
+
+
+vector<policy> EA_replicate(vector<policy> P, int popSize, int numCities, salesman S, vector<city> citySet) {
+	vector<policy> population;
+	population = P;
+	assert(population.size() == popSize / 2);
+
+	while (population.size() != popSize)
+	{
+		int index;
+		index = rand() % (popSize / 2);
+		policy Start;
+		Start = population.at(index);
+
+		int index2;
+		int index3;
+
+		// mutation process
+		// swap two cities in policy
+		index2 = rand() % (numCities - 1) + 1; //gets number between one and the maximum number of cities
+		index3 = rand() % (numCities - 1) + 1; //ensures that the first city is never mutated, so salesman always starts at same city 
+
+		while (index2 == index3)
+		{
+			index3 = rand() % (numCities - 1) + 1;
+		}
+
+		assert(index2 != 0 && index3 != 0); // fulfills test that agent always starts in same city (LR.5)
+
+		int temp;
+		temp = Start.A.at(index2);
+		Start.A.at(index2) = Start.A.at(index3);
+		Start.A.at(index3) = temp;
+
+		population.push_back(Start);
+		assert(population.at(index).A != Start.A); //fulfills test that a policy is mutated by the program
+	}
+	assert(population.size() == popSize);
+
+	return population;
+};
+
+
+vector<policy> EA_eval(vector<policy> P, int popSize, int numCities, salesman S, vector <city> citySet) {
+	vector<policy> population;
+	population = P;
+	assert(population.size() == popSize);
+
+	// update the distance travelled 
+	// update the fitness
+	// assert that the fitness does not equal -1 (the default value)
+	for (int i = 0; i < population.size(); i++)
+	{
+		//assert(population.at(i).fitness == -1); //ensures that initial fitness is at default value (-1)
+
+		S.update(population.at(i).P, citySet);
+		assert(S.distance >= 100); //fulfills test that program can calculate total distance in policy (minimum dist is 100 because 100x100 grid) (LR.8)
+
+		population.at(i).fitness = S.fitness;
+		assert(population.at(i).fitness != -1); //fulfills test that program can set fitness of policy based on distance (MR.2)
+												// doing it in loop fulfills test that program can set fitness of each policy in population (MR.3)
+		S.fitness = 0;
+		//cout << population.at(i).fitness << " ";
 	}
 
-	// randomly shuffle all cities but keep first one in same position
-	random_shuffle(P.begin() + 1, P.end());
+	return population;
+};
 
-	/*for (int i = 0; i < P.size(); i++)
+
+vector<policy> EA_downselect(vector<policy> P, int popSize) {
+	vector<policy> population;
+	assert(population.size() == 0);
+
+	// binary tournament
+	// halving size of vector
+	// trying to minimize fitness
+	// compare two random spots in population, send lower fitness to downselected population
+	while (population.size() != popSize / 2)
 	{
-	cout << P.at(i) << " ";
+		int index = rand() % (popSize);
+		int index2 = rand() % (popSize);
+
+		// assure that index2 is not the same as index
+		while (index == index2)
+		{
+			index2 = rand() % popSize;
+		}
+
+		//cout << "Index 1: " << index << " Index 2: " << index2 << endl;
+
+		if (P.at(index).fitness < P.at(index2).fitness)
+		{
+			population.push_back(P.at(index));
+		}
+		else
+		{
+			population.push_back(P.at(index2));
+		}
 	}
-	cout << endl;*/
-	assert(P.size() == numCities); // check that policy has same size as total number of cities
-	assert(*P.begin() == 0); // check that every policy starts at the first city
-							 // previous asserts fulfill test that agent has set of policies that represent its path (LR.3)
-							 // previous asserts also partially fulfill test that agent always starts at same city (LR.5)
+	assert(population.size() == popSize / 2); //fulfills test that population can be downselected - size of vector halved (MR.4)
 
-	fitness = -1.0;
-}
+	return population;
+};
 
-vector<policy> EA_init(int numCities, int popSize);
 
-vector<policy> EA_replicate(vector<policy> P, int popSize, int numCities, salesman S, vector<city> citySet);
-
-vector<policy> EA_eval(vector<policy> P, int popSize, int numCities, salesman S, vector <city> citySet);
-
-vector<policy> EA_downselect(vector<policy> P, int popSize);
 
 
 int main()
@@ -223,126 +288,6 @@ int main()
 	return 0;
 }
 
-vector<policy> EA_init(int numCities, int popSize)
-{
-	vector<policy> population;
 
-	for (int i = 0; i < popSize / 2; i++)
-	{
-		policy p;
-		p.init(numCities);
-		population.push_back(p);
-	}
-	assert(population.size() == popSize / 2); // fulfills test that a population of policies is created (MR.1)
-
-	return population;
-}
-
-
-
-vector<policy> EA_replicate(vector<policy> P, int popSize, int numCities, salesman S, vector<city> citySet)
-{
-	vector<policy> population;
-	population = P;
-	assert(population.size() == popSize / 2);
-
-	while (population.size() != popSize)
-	{
-		int index;
-		index = rand() % (popSize / 2);
-		policy pol;
-		pol = population.at(index);
-
-		int index2;
-		int index3;
-
-		// mutation process
-		// swap two cities in policy
-		index2 = rand() % (numCities - 1) + 1; //gets number between one and the maximum number of cities
-		index3 = rand() % (numCities - 1) + 1; //ensures that the first city is never mutated, so salesman always starts at same city 
-
-		while (index2 == index3)
-		{
-			index3 = rand() % (numCities - 1) + 1;
-		}
-
-		assert(index2 != 0 && index3 != 0); // fulfills test that agent always starts in same city (LR.5)
-
-		int temp;
-		temp = pol.P.at(index2);
-		pol.P.at(index2) = pol.P.at(index3);
-		pol.P.at(index3) = temp;
-
-		population.push_back(pol);
-		assert(population.at(index).P != pol.P); //fulfills test that a policy is mutated by the program
-	}
-	assert(population.size() == popSize);
-
-
-
-	return population;
-}
-
-vector<policy> EA_eval(vector<policy> P, int popSize, int numCities, salesman S, vector <city> citySet)
-{
-	vector<policy> population;
-	population = P;
-	assert(population.size() == popSize);
-
-	// update the distance travelled 
-	// update the fitness
-	// assert that the fitness does not equal -1 (the default value)
-	for (int i = 0; i < population.size(); i++)
-	{
-		//assert(population.at(i).fitness == -1); //ensures that initial fitness is at default value (-1)
-
-		S.update(population.at(i).P, citySet);
-		assert(S.distance >= 100); //fulfills test that program can calculate total distance in policy (minimum dist is 100 because 100x100 grid) (LR.8)
-
-		population.at(i).fitness = S.fitness;
-		assert(population.at(i).fitness != -1); //fulfills test that program can set fitness of policy based on distance (MR.2)
-												// doing it in loop fulfills test that program can set fitness of each policy in population (MR.3)
-		S.fitness = 0;
-		//cout << population.at(i).fitness << " ";
-	}
-
-	return population;
-}
-
-vector<policy> EA_downselect(vector<policy> P, int popSize)
-{
-	vector<policy> population;
-	assert(population.size() == 0);
-
-	// binary tournament
-	// halving size of vector
-	// trying to minimize fitness
-	// compare two random spots in population, send lower fitness to downselected population
-	while (population.size() != popSize / 2)
-	{
-		int index = rand() % (popSize);
-		int index2 = rand() % (popSize);
-
-		// assure that index2 is not the same as index
-		while (index == index2)
-		{
-			index2 = rand() % popSize;
-		}
-
-		//cout << "Index 1: " << index << " Index 2: " << index2 << endl;
-
-		if (P.at(index).fitness < P.at(index2).fitness)
-		{
-			population.push_back(P.at(index));
-		}
-		else
-		{
-			population.push_back(P.at(index2));
-		}
-	}
-	assert(population.size() == popSize / 2); //fulfills test that population can be downselected - size of vector halved (MR.4)
-
-	return population;
-}
 
 
